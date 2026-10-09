@@ -11,6 +11,6 @@ mod tests {
 
     #[test]
     fn banner_contains_version() {
-        assert!(banner().contains(env!("CARGO_PKG_NAME")));
+        assert!(banner().contains(env!("CARGO_PKG_VERSION")));
     }
 }
