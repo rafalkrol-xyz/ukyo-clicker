@@ -47,3 +47,35 @@ impl Buttons {
         self.0 & other.0 == other.0
     }
 }
+
+pub struct Battery {
+    /// 0 = empty, 2 = critical, 4 = low, 6 = medium, 8 = full.
+    /// See: <https://github.com/dekuNukem/Nintendo_Switch_Reverse_Engineering/blob/master/bluetooth_hid_notes.md#standard-input-report-format>
+    pub level: u8,
+    pub charging: bool,
+}
+
+pub struct Standard {
+    pub timer: u8,
+    pub buttons: Buttons,
+    pub battery: Battery,
+}
+
+pub enum InputReport {
+    /// 0x30: full mode, pushed at 60 Hz
+    /// See: <https://github.com/dekuNukem/Nintendo_Switch_Reverse_Engineering/blob/master/bluetooth_hid_notes.md#input-0x30>
+    Full(Standard),
+    /// 0x21: the reply to a subcommand we sent.
+    /// See: <https://github.com/dekuNukem/Nintendo_Switch_Reverse_Engineering/blob/master/bluetooth_hid_notes.md#standard-input-report-format>
+    SubcommandReply {
+        standard: Standard,
+        ack: bool,
+        subcommand: u8,
+    },
+}
+
+pub enum ParserError {
+    Empty,
+    TooShort { id: u8, len: usize, need: usize },
+    Unsupported(u8),
+}
