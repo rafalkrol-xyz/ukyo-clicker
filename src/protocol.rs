@@ -3,7 +3,7 @@
 /// Button state from bytes 3 (right), 4 (shared), 5 (left) of a standard
 /// input report, packed as `right | shared << 8 | left << 16`.
 /// See: <https://github.com/dekuNukem/Nintendo_Switch_Reverse_Engineering/blob/master/bluetooth_hid_notes.md#standard-input-report---buttons>
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Buttons(pub u32);
 
 impl Buttons {
@@ -60,6 +60,7 @@ impl Buttons {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Battery {
     /// 0 = empty, 2 = critical, 4 = low, 6 = medium, 8 = full.
     /// See: <https://github.com/dekuNukem/Nintendo_Switch_Reverse_Engineering/blob/master/bluetooth_hid_notes.md#standard-input-report-format>
@@ -67,12 +68,14 @@ pub struct Battery {
     pub charging: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Standard {
     pub timer: u8,
     pub buttons: Buttons,
     pub battery: Battery,
 }
 
+#[derive(Debug)]
 pub enum InputReport {
     /// 0x30: full mode, pushed at 60 Hz
     /// See: <https://github.com/dekuNukem/Nintendo_Switch_Reverse_Engineering/blob/master/bluetooth_hid_notes.md#input-0x30>
@@ -86,6 +89,7 @@ pub enum InputReport {
     },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ParserError {
     Empty,
     TooShort { id: u8, len: usize, need: usize },
