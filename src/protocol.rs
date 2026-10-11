@@ -79,3 +79,51 @@ pub enum ParserError {
     TooShort { id: u8, len: usize, need: usize },
     Unsupported(u8),
 }
+
+/// Bytes 0..=12: id, timer, battery, buttons, sticks, vibrator.
+const STANDARD_LEN: usize = 13;
+/// Standard header + ACK (13) + echoed subcommand id (14).
+const REPLY_LEN: usize = 15;
+
+fn need(buf: &[u8], need: usize) -> Result<(), ParserError> {
+    if buf.len() < need {
+        return Err(ParserError::TooShort {
+            id: buf[0],
+            len: buf.len(),
+            need,
+        });
+    }
+    Ok(())
+}
+
+/// Caller must have checked `buf.len() >= STANDARD_LEN`.
+fn parse_standard(buf: &[u8]) -> Standard {
+    let hi = buf[2] >> 4;
+    Standard {
+        timer: buf[1],
+        buttons: Buttons::from_bytes(buf[3], buf[4], buf[5]),
+        battery: Battery {
+            level: hi & 0x0E,
+            charging: hi & 0x01 != 0,
+        },
+    }
+}
+
+pub fn parse_input(buf: &[u8]) -> Result<InputReport, ParserError> {
+    let id = *buf.first().ok_or(ParserError::Empty)?;
+    match id {
+        0x30 => {
+            need(buf, STANDARD_LEN)?;
+            Ok(InputReport::Full(parse_standard(buf)))
+        }
+        0x21 => {
+            need(buf, REPLY_LEN)?;
+            Ok(InputReport::SubcommandReply {
+                standard: parse_standard(buf),
+                ack: buf[13] & 0x80 != 0,
+                subcommand: buf[14],
+            })
+        }
+        other => Err(ParserError::Unsupported(other)),
+    }
+}
