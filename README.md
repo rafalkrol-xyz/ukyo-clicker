@@ -11,7 +11,8 @@ was apparently the codename for the right Joy-Con.
 ## Prerequisites
 
 * [the right Nintendo Switch Joy-Con](https://www.nintendo.com/us/store/products/joy-con-r-neon-red/)
+* [Rust 1.99.0 or newer](https://rust-lang.org/)
 
 ## References
 
-...
+* [Nintendo Switch Reverse Engineering](https://github.com/dekuNukem/Nintendo_Switch_Reverse_Engineering)
