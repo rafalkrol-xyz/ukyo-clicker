@@ -22,6 +22,18 @@ impl Buttons {
     pub const RSTICK: Buttons = Buttons(0x00_04_00);
     pub const HOME: Buttons = Buttons(0x00_10_00);
 
+    /// Packs the three button bytes into one `u32` so any button can be
+    /// tested with a single mask. Each byte is widened to `u32`, then shifted
+    /// into its own 8-bit lane:
+    ///
+    /// ```text
+    /// bits 23..16  15..8   7..0
+    ///      left    shared  right
+    /// ```
+    ///
+    /// The lanes never overlap, so `|` just places them side by side.
+    /// Example with the doc's sample bytes `41 00 82`:
+    /// `0x41 | 0x00 << 8 | 0x82 << 16 = 0x82_00_41`.
     pub fn from_bytes(right: u8, shared: u8, left: u8) -> Self {
         Buttons(u32::from(right) | u32::from(shared) << 8 | u32::from(left) << 16)
     }
@@ -98,6 +110,18 @@ fn need(buf: &[u8], need: usize) -> Result<(), ParserError> {
 
 /// Caller must have checked `buf.len() >= STANDARD_LEN`.
 fn parse_standard(buf: &[u8]) -> Standard {
+    // Byte 2 holds two 4-bit fields:
+    //
+    //   bit  7 6 5 4 | 3 2 1 0
+    //        L L L C | connection info (ignored)
+    //
+    // `>> 4` drops the low nibble, leaving `0b0000_LLLC` in `hi`.
+    // - `hi & 0x0E` (0b1110) keeps the level bits in place. Since the LSB is
+    //   masked off, the level is always even (0, 2, 4, 6, 8), matching the
+    //   documented values without needing another shift.
+    // - `hi & 0x01` isolates the LSB, which is the charging flag.
+    //
+    // Example: byte 2 = 0x91 → hi = 0x9 = 0b1001 → level 8 (full), charging.
     let hi = buf[2] >> 4;
     Standard {
         timer: buf[1],
@@ -120,6 +144,9 @@ pub fn parse_input(buf: &[u8]) -> Result<InputReport, ParserError> {
             need(buf, REPLY_LEN)?;
             Ok(InputReport::SubcommandReply {
                 standard: parse_standard(buf),
+                // Byte 13: MSB (0x80) set = ACK, clear = NACK. The low 7
+                // bits carry the reply data type (e.g. 0x82 = ACK + type 0x02),
+                // which we don't need here.
                 ack: buf[13] & 0x80 != 0,
                 subcommand: buf[14],
             })
