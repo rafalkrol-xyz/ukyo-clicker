@@ -90,7 +90,7 @@ pub enum InputReport {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ParserError {
+pub enum ParseError {
     Empty,
     TooShort { id: u8, len: usize, need: usize },
     Unsupported(u8),
@@ -101,9 +101,9 @@ const STANDARD_LEN: usize = 13;
 /// Standard header + ACK (13) + echoed subcommand id (14).
 const REPLY_LEN: usize = 15;
 
-fn need(buf: &[u8], need: usize) -> Result<(), ParserError> {
+fn need(buf: &[u8], need: usize) -> Result<(), ParseError> {
     if buf.len() < need {
-        return Err(ParserError::TooShort {
+        return Err(ParseError::TooShort {
             id: buf[0],
             len: buf.len(),
             need,
@@ -137,8 +137,8 @@ fn parse_standard(buf: &[u8]) -> Standard {
     }
 }
 
-pub fn parse_input(buf: &[u8]) -> Result<InputReport, ParserError> {
-    let id = *buf.first().ok_or(ParserError::Empty)?;
+pub fn parse_input(buf: &[u8]) -> Result<InputReport, ParseError> {
+    let id = *buf.first().ok_or(ParseError::Empty)?;
     match id {
         0x30 => {
             need(buf, STANDARD_LEN)?;
@@ -155,6 +155,7 @@ pub fn parse_input(buf: &[u8]) -> Result<InputReport, ParserError> {
                 subcommand: buf[14],
             })
         }
-        other => Err(ParserError::Unsupported(other)),
+        other => Err(ParseError::Unsupported(other)),
     }
 }
+
