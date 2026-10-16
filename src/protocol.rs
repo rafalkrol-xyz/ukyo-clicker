@@ -210,6 +210,15 @@ impl SubcommandBuilder {
         self.counter = (self.counter + 1) & 0x0F;
         buf
     }
+
+    pub fn set_input_mode(&mut self, mode: u8) -> [u8; OUTPUT_LEN] {
+        self.build(SUBCMD_SET_INPUT_MODE, &[mode])
+    }
+
+    /// Low nibble: LEDs on. High nibble: LEDs flashing.
+    pub fn set_player_lights(&mut self, lights: u8) -> [u8; OUTPUT_LEN] {
+        self.build(SUBCMD_SET_PLAYER_LIGHTS, &[lights])
+    }
 }
 
 #[cfg(test)]
