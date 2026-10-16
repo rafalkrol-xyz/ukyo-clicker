@@ -159,6 +159,34 @@ pub fn parse_input(buf: &[u8]) -> Result<InputReport, ParseError> {
     }
 }
 
+// ---------- Output reports (host -> Joy-Con) ----------
+
+/// Bluetooth length of an output report, including the report ID byte.
+pub const OUTPUT_LEN: usize = 49;
+/// Report ID for "rumble + subcommand".
+const OUTPUT_RUMBLE_SUBCMD: u8 = 0x01;
+/// Neutral rumble (left 4 bytes, right 4 bytes): no vibration.
+const NEUTRAL_RUMBLE: [u8; 8] = [0x00, 0x01, 0x40, 0x40, 0x00, 0x01, 0x40, 0x40];
+/// Subcommand ID sits at byte 10, its arguments start at byte 11.
+const SUBCMD_ID_AT: usize = 10;
+const SUBCMD_ARGS_AT: usize = 11;
+
+pub const SUBCMD_SET_INPUT_MODE: u8 = 0x03;
+pub const SUBCMD_SET_PLAYER_LIGHTS: u8 = 0x30;
+/// Argument to `SUBCMD_SET_INPUT_MODE`: standard full mode (0x30 reports).
+pub const MODE_FULL: u8 = 0x30;
+
+/// Builds `0x01` output reports and owns the packet counter.
+/// Not `Clone`: two copies would reuse packet numbers.
+#[derive(Debug, Default)]
+pub struct SubcommandBuilder {
+    counter: u8,
+}
+
+impl  {
+    
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -186,14 +214,26 @@ mod tests {
         assert!(s.buttons.contains(Buttons::Y));
         assert!(s.buttons.contains(Buttons::R));
         assert!(!s.buttons.contains(Buttons::A));
-        assert_eq!(s.battery, Battery { level: 8, charging: false });
+        assert_eq!(
+            s.battery,
+            Battery {
+                level: 8,
+                charging: false
+            }
+        );
     }
 
     #[test]
     fn each_right_button_maps_to_its_bit() {
         let cases = [
-            (0x01, Buttons::Y), (0x02, Buttons::X), (0x04, Buttons::B), (0x08, Buttons::A),
-            (0x10, Buttons::SR), (0x20, Buttons::SL), (0x40, Buttons::R), (0x80, Buttons::ZR),
+            (0x01, Buttons::Y),
+            (0x02, Buttons::X),
+            (0x04, Buttons::B),
+            (0x08, Buttons::A),
+            (0x10, Buttons::SR),
+            (0x20, Buttons::SL),
+            (0x40, Buttons::R),
+            (0x80, Buttons::ZR),
         ];
         for (bit, button) in cases {
             let s = full(&report(0x30, 0, [bit, 0, 0]));
@@ -212,7 +252,13 @@ mod tests {
     #[test]
     fn charging_flag() {
         let s = full(&report(0x30, 0x91, [0; 3])); // high nibble 9 = 8 + charging
-        assert_eq!(s.battery, Battery { level: 8, charging: true });
+        assert_eq!(
+            s.battery,
+            Battery {
+                level: 8,
+                charging: true
+            }
+        );
     }
 
     #[test]
@@ -222,7 +268,10 @@ mod tests {
         let mut r = report(0x21, 0x8E, [0; 3]);
         r[13] = 0x80; // the most significant bit MSB of byte 13 is set to 1, that's ACK
         r[14] = 0x03; // echo of "set input report mode", see <https://github.com/dekuNukem/Nintendo_Switch_Reverse_Engineering/blob/master/bluetooth_hid_subcommands_notes.md#subcommand-0x03-set-input-report-mode>
-        let Ok(InputReport::SubcommandReply { ack, subcommand, .. }) = parse_input(&r) else {
+        let Ok(InputReport::SubcommandReply {
+            ack, subcommand, ..
+        }) = parse_input(&r)
+        else {
             panic!("expected SubcommandReply");
         };
         assert!(ack);
@@ -240,9 +289,12 @@ mod tests {
         assert_eq!(parse_input(&[]), Err(ParseError::Empty));
         assert_eq!(
             parse_input(&[0x30, 0, 0]),
-            Err(ParseError::TooShort { id: 0x30, len: 3, need: STANDARD_LEN })
+            Err(ParseError::TooShort {
+                id: 0x30,
+                len: 3,
+                need: STANDARD_LEN
+            })
         );
         assert_eq!(parse_input(&[0x3F; 12]), Err(ParseError::Unsupported(0x3F)));
     }
 }
-
