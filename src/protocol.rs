@@ -75,7 +75,7 @@ pub struct Standard {
     pub battery: Battery,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InputReport {
     /// 0x30: full mode, pushed at 60 Hz
     /// See: <https://github.com/dekuNukem/Nintendo_Switch_Reverse_Engineering/blob/master/bluetooth_hid_notes.md#input-0x30>
@@ -156,6 +156,93 @@ pub fn parse_input(buf: &[u8]) -> Result<InputReport, ParseError> {
             })
         }
         other => Err(ParseError::Unsupported(other)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 49-byte report with the given id, battery byte and 3 button bytes.
+    fn report(id: u8, battery: u8, buttons: [u8; 3]) -> [u8; 49] {
+        let mut r = [0u8; 49];
+        r[0] = id;
+        r[2] = battery;
+        r[3..6].copy_from_slice(&buttons);
+        r
+    }
+
+    fn full(buf: &[u8]) -> Standard {
+        match parse_input(buf) {
+            Ok(InputReport::Full(s)) => s,
+            other => panic!("expected Full, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn full_report_buttons_and_battery() {
+        // 0x41 = Y + R; battery 0x8E = level 8, not charging, Joy-Con
+        let s = full(&report(0x30, 0x8E, [0x41, 0x00, 0x00]));
+        assert!(s.buttons.contains(Buttons::Y));
+        assert!(s.buttons.contains(Buttons::R));
+        assert!(!s.buttons.contains(Buttons::A));
+        assert_eq!(s.battery, Battery { level: 8, charging: false });
+    }
+
+    #[test]
+    fn each_right_button_maps_to_its_bit() {
+        let cases = [
+            (0x01, Buttons::Y), (0x02, Buttons::X), (0x04, Buttons::B), (0x08, Buttons::A),
+            (0x10, Buttons::SR), (0x20, Buttons::SL), (0x40, Buttons::R), (0x80, Buttons::ZR),
+        ];
+        for (bit, button) in cases {
+            let s = full(&report(0x30, 0, [bit, 0, 0]));
+            assert_eq!(s.buttons, button, "bit {bit:#04x}");
+        }
+    }
+
+    #[test]
+    fn shared_buttons() {
+        let s = full(&report(0x30, 0, [0, 0x12, 0])); // Plus + Home
+        assert!(s.buttons.contains(Buttons::PLUS));
+        assert!(s.buttons.contains(Buttons::HOME));
+        assert!(!s.buttons.contains(Buttons::MINUS));
+    }
+
+    #[test]
+    fn charging_flag() {
+        let s = full(&report(0x30, 0x91, [0; 3])); // high nibble 9 = 8 + charging
+        assert_eq!(s.battery, Battery { level: 8, charging: true });
+    }
+
+    #[test]
+    fn subcommand_ack_and_nack() {
+        // ID x21 is a subcommand reply
+        // See: <https://github.com/dekuNukem/Nintendo_Switch_Reverse_Engineering/blob/master/bluetooth_hid_notes.md#standard-input-report-format>
+        let mut r = report(0x21, 0x8E, [0; 3]);
+        r[13] = 0x80; // the most significant bit MSB of byte 13 is set to 1, that's ACK
+        r[14] = 0x03; // echo of "set input report mode", see <https://github.com/dekuNukem/Nintendo_Switch_Reverse_Engineering/blob/master/bluetooth_hid_subcommands_notes.md#subcommand-0x03-set-input-report-mode>
+        let Ok(InputReport::SubcommandReply { ack, subcommand, .. }) = parse_input(&r) else {
+            panic!("expected SubcommandReply");
+        };
+        assert!(ack);
+        assert_eq!(subcommand, 0x03);
+
+        r[13] = 0x00; // the most significant bit MSB of byte 13 is set to 0, that's NACK
+        assert!(matches!(
+            parse_input(&r),
+            Ok(InputReport::SubcommandReply { ack: false, .. })
+        ));
+    }
+
+    #[test]
+    fn errors() {
+        assert_eq!(parse_input(&[]), Err(ParseError::Empty));
+        assert_eq!(
+            parse_input(&[0x30, 0, 0]),
+            Err(ParseError::TooShort { id: 0x30, len: 3, need: STANDARD_LEN })
+        );
+        assert_eq!(parse_input(&[0x3F; 12]), Err(ParseError::Unsupported(0x3F)));
     }
 }
 
