@@ -331,4 +331,41 @@ mod tests {
         );
         assert_eq!(parse_input(&[0x3F; 12]), Err(ParseError::Unsupported(0x3F)));
     }
+
+    fn expected(counter: u8, subcommand: u8, arg: u8) -> [u8; OUTPUT_LEN] {
+        let mut e = [0u8; OUTPUT_LEN];
+        e[..12].copy_from_slice(&[
+            0x01, counter, // report id, packet counter
+            0x00, 0x01, 0x40, 0x40, 0x00, 0x01, 0x40, 0x40, // neutral rumble
+            subcommand, arg,
+        ]);
+        e
+    }
+
+    #[test]
+    fn set_input_mode_bytes() {
+        let mut b = SubcommandBuilder::new();
+        assert_eq!(b.set_input_mode(MODE_FULL), expected(0, 0x03, 0x30));
+    }
+
+    #[test]
+    fn player_lights_after_mode_uses_next_counter() {
+        let mut b = SubcommandBuilder::new();
+        b.set_input_mode(MODE_FULL);
+        assert_eq!(b.set_player_lights(0x01), expected(1, 0x30, 0x01));
+    }
+
+    #[test]
+    fn counter_wraps_after_15() {
+        let mut b = SubcommandBuilder::new();
+        for want in (0..16).chain(0..3) {
+            assert_eq!(b.build(0x00, &[])[1], want);
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "args too long")]
+    fn too_many_args_panics() {
+        SubcommandBuilder::new().build(0x00, &[0; OUTPUT_LEN]);
+    }
 }
