@@ -183,8 +183,33 @@ pub struct SubcommandBuilder {
     counter: u8,
 }
 
-impl  {
-    
+impl SubcommandBuilder {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Build one output report and advance the counter (0..=15, wraps around like a clock).
+    ///
+    /// # Panics
+    /// If `args` does not fit after byte 11.
+    pub fn build(&mut self, subcommand: u8, args: &[u8]) -> [u8; OUTPUT_LEN] {
+        assert!(
+            args.len() <= OUTPUT_LEN - SUBCMD_ARGS_AT,
+            "args too long: {} > {}",
+            args.len(),
+            OUTPUT_LEN - SUBCMD_ARGS_AT
+        );
+
+        let mut buf = [0u8; OUTPUT_LEN];
+        buf[0] = OUTPUT_RUMBLE_SUBCMD;
+        buf[1] = self.counter;
+        buf[2..SUBCMD_ID_AT].copy_from_slice(&NEUTRAL_RUMBLE);
+        buf[SUBCMD_ID_AT] = subcommand;
+        buf[SUBCMD_ARGS_AT..SUBCMD_ARGS_AT + args.len()].copy_from_slice(args);
+
+        self.counter = (self.counter + 1) & 0x0F;
+        buf
+    }
 }
 
 #[cfg(test)]
