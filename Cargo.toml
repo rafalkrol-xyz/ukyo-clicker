@@ -4,3 +4,5 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+objc2-core-foundation = "=0.3.2"
+objc2-io-kit = "=0.3.2"
