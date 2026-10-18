@@ -1,5 +1,7 @@
 //! ukyo_clicker core library
+
 pub mod protocol;
+pub mod hid;
 
 /// Return crate name and version as a single String
 pub fn banner() -> String {
