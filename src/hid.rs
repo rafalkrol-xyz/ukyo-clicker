@@ -40,7 +40,7 @@ fn product_name(device: &IOHIDDevice) -> String {
     device
         // `property` returns an `Option` (the key may be absent), so the rest of the
         // chain operates on that optional value rather than on a bare result.
-        .property(&cf_key(kIOHIDProductIDKey))
+        .property(&cf_key(kIOHIDProductKey))
         // `and_then` runs only if the previous step was `Some`; it lets us return
         // another `Option`, flattening instead of nesting `Option<Option<_>>`.
         // `downcast_ref` is a checked runtime cast from the generic CoreFoundation
