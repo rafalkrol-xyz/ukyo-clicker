@@ -51,3 +51,54 @@ fn product_name(device: &IOHIDDevice) -> String {
         // unlike `unwrap_or`, which would build it eagerly every call.
         .unwrap_or_else(|| "<unknown>".to_string())
 }
+
+/// Called by IOKit on the run loop thread when a matching device appears.
+unsafe extern "C-unwind" fn on_match(
+    _context: *mut c_void,
+    _result: IOReturn,
+    _sender: *mut c_void,
+    device: NonNull<IOHIDDevice>,
+) {
+    // SAFETY: IOKit passes a valid device that lives for this call.
+    let device = unsafe { device.as_ref() };
+    println!("Connected: {}", product_name(device));
+}
+
+unsafe extern "C-unwind" fn on_remove(
+    _context: *mut c_void,
+    _result: IOReturn,
+    _sender: *mut c_void,
+    device: NonNull<IOHIDDevice>,
+) {
+    // SAFETY: IOKit passes a valid device that lives for this call.
+    let device = unsafe { device.as_ref() };
+    println!("Disconnected: {}", product_name(device));
+}
+
+/// Watch for the right Joy-Con forever (blocks the current thread).
+pub fn run() -> Result<(), IOReturn> {
+    let manager = IOHIDManager::new(None, kIOHIDOptionsTypeNone);
+    let matching = matching_dict();
+    let run_loop = CFRunLoop::current().expect("thread has a run loop");
+    // SAFETY: Apple guarantees this global exists.
+    let mode = unsafe { kCFRunLoopDefaultMode }.expect("default mode exists");
+
+    // SAFETY: dict holds CFString keys / CFNumber values as IOKit expects;
+    // callbacks match IOHIDDeviceCallback and ignore the (null) context.
+    unsafe {
+        manager.set_device_matching(Some(matching.as_opaque()));
+        manager.register_device_matching_callback(Some(on_match), std::ptr::null_mut());
+        manager.register_device_removal_callback(Some(on_remove), std::ptr::null_mut());
+        manager.schedule_with_run_loop(&run_loop, mode);
+    }
+
+    let ret = manager.open(kIOHIDOptionsTypeNone);
+    if ret != kIOReturnSuccess {
+        return Err(ret);
+    }
+
+
+    println!("waiting for Joy-Con (R)... Ctrl-C to quit");
+    CFRunLoop::current();// blocks; callbacks fire from in here
+    Ok(())
+}
