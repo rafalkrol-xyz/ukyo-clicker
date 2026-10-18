@@ -97,8 +97,7 @@ pub fn run() -> Result<(), IOReturn> {
         return Err(ret);
     }
 
-
     println!("waiting for Joy-Con (R)... Ctrl-C to quit");
-    CFRunLoop::current();// blocks; callbacks fire from in here
+    CFRunLoop::run(); // blocks; callbacks fire from in here
     Ok(())
 }
