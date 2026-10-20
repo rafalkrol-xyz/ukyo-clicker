@@ -4,7 +4,7 @@ use std::ffi::{CStr, c_void};
 use std::ptr::NonNull;
 
 use objc2_core_foundation::{
-    CFDictionary, CFNumber, CFRetained, CFRunLoop, CFString, kCFRunLoopDefaultMode,
+    CFDictionary, CFIndex, CFNumber, CFRetained, CFRunLoop, CFString, kCFRunLoopDefaultMode,
 };
 
 use objc2_io_kit::{
@@ -52,9 +52,15 @@ fn product_name(device: &IOHIDDevice) -> String {
         .unwrap_or_else(|| "<unknown>".to_string())
 }
 
+/// Receives every input report: the report ID IOKit saw, and the bytes.
+pub type ReportHandler = fn(report_id: u32, bytes: &[u8]);
+
+/// Must be >= the device's MaxInputReportSize (see `ioreg`).
+const REPORT_BUF_LEN: usize = 512;
+
 /// Called by IOKit on the run loop thread when a matching device appears.
 unsafe extern "C-unwind" fn on_match(
-    _context: *mut c_void,
+    context: *mut c_void,
     _result: IOReturn,
     _sender: *mut c_void,
     device: NonNull<IOHIDDevice>,
@@ -62,6 +68,20 @@ unsafe extern "C-unwind" fn on_match(
     // SAFETY: IOKit passes a valid device that lives for this call.
     let device = unsafe { device.as_ref() };
     println!("Connected: {}", product_name(device));
+
+    // IOKit writes every report into this buffer for as long as the device
+    // exists, so it must never move or be freed. Leak it (fixed in Task 9).
+    let buf: &'static mut [u8; REPORT_BUF_LEN] = Box::leak(Box::new([0; REPORT_BUF_LEN]));
+    let ptr = NonNull::from(buf).cast::<u8>();
+
+    // SAFETY: `ptr` is valid for REPORT_BUF_LEN bytes forever; `context` is
+    // the boxed ReportHandler from `run`, also alive forever.
+    device.register_input_report_callback(
+        ptr,
+        REPORT_BUF_LEN as CFIndex,
+        on_report, // TODO: To be written
+        context,
+    );
 }
 
 unsafe extern "C-unwind" fn on_remove(
