@@ -8,8 +8,8 @@ use objc2_core_foundation::{
 };
 
 use objc2_io_kit::{
-    IOHIDDevice, IOHIDManager, IOReturn, kIOHIDOptionsTypeNone, kIOHIDProductIDKey,
-    kIOHIDProductKey, kIOHIDVendorIDKey, kIOReturnSuccess,
+    IOHIDDevice, IOHIDManager, IOHIDReportType, IOReturn, kIOHIDOptionsTypeNone,
+    kIOHIDProductIDKey, kIOHIDProductKey, kIOHIDVendorIDKey, kIOReturnSuccess,
 };
 
 // For a Bluetooth-paired right Joy-Con,
