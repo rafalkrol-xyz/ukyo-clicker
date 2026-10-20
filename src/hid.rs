@@ -116,18 +116,21 @@ unsafe extern "C-unwind" fn on_remove(
 }
 
 /// Watch for the right Joy-Con forever (blocks the current thread).
-pub fn run() -> Result<(), IOReturn> {
+pub fn run(handler: ReportHandler) -> Result<(), IOReturn> {
     let manager = IOHIDManager::new(None, kIOHIDOptionsTypeNone);
     let matching = matching_dict();
     let run_loop = CFRunLoop::current().expect("thread has a run loop");
     // SAFETY: Apple guarantees this global exists.
     let mode = unsafe { kCFRunLoopDefaultMode }.expect("default mode exists");
+    // Put the handler on the heap and hand IOKit a raw pointer to it.
+    // Leaked on purpose: callbacks may use it for the whole program.
+    let context = Box::into_raw(Box::new(handler)).cast::<c_void>();
 
     // SAFETY: dict holds CFString keys / CFNumber values as IOKit expects;
     // callbacks match IOHIDDeviceCallback and ignore the (null) context.
     unsafe {
         manager.set_device_matching(Some(matching.as_opaque()));
-        manager.register_device_matching_callback(Some(on_match), std::ptr::null_mut());
+        manager.register_device_matching_callback(Some(on_match), context);
         manager.register_device_removal_callback(Some(on_remove), std::ptr::null_mut());
         manager.schedule_with_run_loop(&run_loop, mode);
     }
