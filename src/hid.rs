@@ -76,6 +76,16 @@ unsafe extern "C-unwind" fn on_match(
 
     // SAFETY: `ptr` is valid for REPORT_BUF_LEN bytes forever; `context` is
     // the boxed ReportHandler from `run`, also alive forever.
+    unsafe {
+        device.register_input_report_callback(
+            ptr,
+            REPORT_BUF_LEN as CFIndex,
+            Some(on_report),
+            context,
+        );
+    }
+}
+
 /// Called by IOKit for each input report.
 unsafe extern "C-unwind" fn on_report(
     context: *mut c_void,
