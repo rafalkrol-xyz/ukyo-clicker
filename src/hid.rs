@@ -76,12 +76,22 @@ unsafe extern "C-unwind" fn on_match(
 
     // SAFETY: `ptr` is valid for REPORT_BUF_LEN bytes forever; `context` is
     // the boxed ReportHandler from `run`, also alive forever.
-    device.register_input_report_callback(
-        ptr,
-        REPORT_BUF_LEN as CFIndex,
-        on_report, // TODO: To be written
-        context,
-    );
+/// Called by IOKit for each input report.
+unsafe extern "C-unwind" fn on_report(
+    context: *mut c_void,
+    _result: IOReturn,
+    _sender: *mut c_void,
+    _type: IOHIDReportType,
+    report_id: u32,
+    report: NonNull<u8>,
+    len: CFIndex,
+) {
+    let len = usize::try_from(len).unwrap_or(0);
+    // SAFETY: IOKit wrote `len` valid bytes at `report` (the leaked buffer).
+    let bytes = unsafe { std::slice::from_raw_parts(report.as_ptr(), len) };
+    // SAFETY: `context` is the `*mut ReportHandler` created in `run`.
+    let handler = unsafe { *context.cast::<ReportHandler>() };
+    handler(report_id, bytes)
 }
 
 unsafe extern "C-unwind" fn on_remove(
