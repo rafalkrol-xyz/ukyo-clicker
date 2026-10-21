@@ -2,5 +2,5 @@
 # Copy to ~/.config/ukyo-clicker/config.toml to customise.
 # Buttons: A B X Y R ZR SL SR PLUS HOME RSTICK
 
-next = ["A", "R", "ZR"]
-prev = ["B", "Y"]
+next = ["A", "ZR"]
+prev = ["B", "R"]
