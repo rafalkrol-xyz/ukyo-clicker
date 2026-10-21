@@ -76,6 +76,8 @@ struct JoyCon {
     builder: SubcommandBuilder,
     last_mode_request: Option<Instant>,
     handler: ReportHandler,
+    /// True between sending set-mode and receiving its ACK.
+    awaiting_mode_ack: bool,
 }
 
 impl JoyCon {
@@ -111,8 +113,9 @@ impl JoyCon {
             subcommand: SUBCMD_SET_INPUT_MODE,
             ..
         }) = parse_input(bytes)
-            && self.last_mode_request.is_some()
+            && self.awaiting_mode_ack
         {
+            self.awaiting_mode_ack = false;
             let report = self.builder.set_player_lights(PLAYER_1);
             self.send(report, "player lights 1");
         }
@@ -127,6 +130,7 @@ impl JoyCon {
             return;
         }
         self.last_mode_request = Some(Instant::now());
+        self.awaiting_mode_ack = true;
         let report = self.builder.set_input_mode(MODE_FULL);
         self.send(report, "set input mode 0x30");
     }
@@ -150,6 +154,7 @@ unsafe extern "C-unwind" fn on_match(
         builder: SubcommandBuilder::new(),
         last_mode_request: None,
         handler,
+        awaiting_mode_ack: false,
     });
     // Both leaked on purpose for now (freed on disconnect in Task 9).
     // Kept as two allocations: IOKit writes `buf` while we hold `&mut JoyCon`.
@@ -220,6 +225,9 @@ pub fn run(handler: ReportHandler) -> Result<(), IOReturn> {
         manager.schedule_with_run_loop(&run_loop, mode);
     }
 
+    // Seize: exclusive access, so macOS's game-controller stack can't
+    // reset the input mode. Side effect: games can't use the Joy-Con
+    // while ukyo-clicker runs.
     let ret = manager.open(kIOHIDOptionsTypeSeizeDevice);
     if ret != kIOReturnSuccess {
         return Err(ret);
