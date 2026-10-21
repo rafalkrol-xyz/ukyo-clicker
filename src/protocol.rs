@@ -6,6 +6,14 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Buttons(pub u32);
 
+impl std::ops::BitOr for Buttons {
+    type Output = Buttons;
+
+    fn bitor(self, rhs: Buttons) -> Buttons {
+        Buttons(self.0 | rhs.0)
+    }
+}
+
 impl Buttons {
     // Byte 3: right Joy-Con
     pub const Y: Buttons = Buttons(0x00_00_01);
@@ -57,6 +65,16 @@ impl Buttons {
     /// ```
     pub fn contains(self, other: Buttons) -> bool {
         self.0 & other.0 == other.0
+    }
+
+    /// True if any bit of `other` is set in `self`.
+    pub fn intersects(self, other: Buttons) -> bool {
+        self.0 & other.0 != 0
+    }
+
+    /// Bits set in `self` but not in `earlier`: buttons that just went down.
+    pub fn pressed_since(self, earlier: Buttons) -> Buttons {
+        Buttons(self.0 & !earlier.0)
     }
 }
 

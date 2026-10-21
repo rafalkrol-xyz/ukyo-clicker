@@ -1,6 +1,10 @@
 //! ukyo_clicker core library
 
+pub mod config;
 pub mod hid;
+pub mod hid;
+pub mod mapper;
+pub mod protocol;
 pub mod protocol;
 
 /// Return crate name and version as a single String
