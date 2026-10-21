@@ -1,6 +1,8 @@
 use clap::Parser;
+use ukyo_clicker::config::Config;
 use ukyo_clicker::hid::ReportHandler;
-use ukyo_clicker::protocol::parse_input;
+use ukyo_clicker::mapper::{Action, Mapper};
+use ukyo_clicker::protocol::{InputReport, parse_input};
 
 /// Right Joy-Con as a presentation clicker.
 #[derive(Parser)]
@@ -29,15 +31,36 @@ fn dump(report_id: u32, bytes: &[u8]) {
     }
 }
 
-fn ignore(_report_id: u32, _bytes: &[u8]) {}
-
 fn main() {
     let args = Args::parse();
     println!("{}", ukyo_clicker::banner());
 
-    let handler: ReportHandler = if args.dump { dump } else { ignore };
+    let config = match Config::load() {
+        Ok(config) => config,
+        Err(e) => {
+            eprintln!("{e}");
+            std::process::exit(1);
+        }
+    };
+    let mut mapper = Mapper::new(config.next, config.prev);
+    let dump_enabled = args.dump;
+
+    let handler: ReportHandler = Box::new(move |report_id, bytes| {
+        if dump_enabled {
+            dump(report_id, bytes);
+        }
+        let Ok(InputReport::Full(state)) = parse_input(bytes) else {
+            return;
+        };
+        for action in mapper.update(state.buttons) {
+            match action {
+                Action::Next => println!("→ NEXT"),
+                Action::Prev => println!("← PREV"),
+            }
+        }
+    });
+
     if let Err(code) = ukyo_clicker::hid::run(handler) {
-        // `{code:#x}`: hex with the `#` alternate flag (`0x` prefix), no width/padding.
         eprintln!("IOHIDManagerOpen failed: {code:#x}");
         std::process::exit(1);
     }
