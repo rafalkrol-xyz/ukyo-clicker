@@ -2,6 +2,7 @@
 
 pub mod config;
 pub mod hid;
+pub mod keys;
 pub mod mapper;
 pub mod protocol;
 
