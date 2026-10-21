@@ -58,7 +58,7 @@ fn product_name(device: &IOHIDDevice) -> String {
 }
 
 /// Receives every input report: the report ID IOKit saw, and the bytes.
-pub type ReportHandler = fn(report_id: u32, bytes: &[u8]);
+pub type ReportHandler = Box<dyn FnMut(u32, &[u8])>;
 
 /// Must be >= the device's MaxInputReportSize (see `ioreg`).
 const REPORT_BUF_LEN: usize = 512;
@@ -75,7 +75,8 @@ struct JoyCon {
     device: CFRetained<IOHIDDevice>,
     builder: SubcommandBuilder,
     last_mode_request: Option<Instant>,
-    handler: ReportHandler,
+    /// Shared with the manager; owned by `run` (leaked).
+    handler: *mut ReportHandler,
     /// True between sending set-mode and receiving its ACK.
     awaiting_mode_ack: bool,
 }
@@ -147,8 +148,8 @@ unsafe extern "C-unwind" fn on_match(
     let device = unsafe { device.as_ref() };
     println!("Connected: {}", product_name(device));
 
-    // SAFETY: `context` is the `*mut ReportHandler` created in `run`.
-    let handler = unsafe { *context.cast::<ReportHandler>() };
+    // `context` is the `*mut ReportHandler` created in `run`; just keep the pointer.
+    let handler = context.cast::<ReportHandler>();
     let joycon = Box::new(JoyCon {
         device: device.retain(),
         builder: SubcommandBuilder::new(),
@@ -190,7 +191,10 @@ unsafe extern "C-unwind" fn on_report(
     // SAFETY: `context` is the leaked JoyCon from `on_match`. Callbacks all
     // run on the one run loop thread, so no other `&mut` to it exists.
     let joycon = unsafe { &mut *context.cast::<JoyCon>() };
-    (joycon.handler)(report_id, bytes);
+    // SAFETY: the handler is leaked in `run`, so it outlives every device,
+    // and only this callback (on the one run loop thread) ever touches it.
+    let handler = unsafe { &mut *joycon.handler };
+    handler(report_id, bytes);
     joycon.on_report(report_id, bytes);
 }
 
