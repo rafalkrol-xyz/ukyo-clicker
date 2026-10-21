@@ -78,6 +78,60 @@ struct JoyCon {
     handler: ReportHandler,
 }
 
+impl JoyCon {
+    /// Send one output report synchronously and log the result.
+    fn send(&self, mut report: [u8; OUTPUT_LEN], what: &str) {
+        let report_id = CFIndex::from(report[0]);
+        let ptr = NonNull::from(&mut report).cast::<u8>();
+        // SAFETY: `ptr` is valid for OUTPUT_LEN bytes for this whole
+        // (synchronous) call; `device` is retained by `self`.
+        let ret = unsafe {
+            self.device.set_report(
+                IOHIDReportType::Output,
+                report_id,
+                ptr,
+                OUTPUT_LEN as CFIndex,
+            )
+        };
+        if ret == kIOReturnSuccess {
+            println!("sent: {what}");
+        } else {
+            eprintln!("send {what} failed: {ret:#x}");
+        }
+    }
+
+    fn on_report(&mut self, report_id: u32, bytes: &[u8]) {
+        if report_id == REPORT_SIMPLE {
+            self.request_full_mode();
+            return;
+        }
+        // Our set-mode was ACKed: now set the LED.
+        if let Ok(InputReport::SubcommandReply {
+            ack: true,
+            subcommand: SUBCMD_SET_INPUT_MODE,
+            ..
+        }) = parse_input(bytes)
+            && self.last_mode_request.is_some()
+        {
+            let report = self.builder.set_player_lights(PLAYER_1);
+            self.send(report, "player lights 1");
+        }
+    }
+
+    /// Ask for 0x30 mode, at most once per MODE_RETRY.
+    fn request_full_mode(&mut self) {
+        let due = self
+            .last_mode_request
+            .is_none_or(|t| t.elapsed() >= MODE_RETRY);
+        if !due {
+            return;
+        }
+        self.last_mode_request = Some(Instant::now());
+        let report = self.builder.set_input_mode(MODE_FULL);
+        self.send(report, "set input mode 0x30");
+    }
+}
+
 /// Called by IOKit on the run loop thread when a matching device appears.
 unsafe extern "C-unwind" fn on_match(
     context: *mut c_void,
