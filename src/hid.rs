@@ -9,7 +9,8 @@ use objc2_core_foundation::{
 };
 use objc2_io_kit::{
     IOHIDDevice, IOHIDManager, IOHIDReportType, IOReturn, kIOHIDOptionsTypeNone,
-    kIOHIDProductIDKey, kIOHIDProductKey, kIOHIDVendorIDKey, kIOReturnSuccess,
+    kIOHIDOptionsTypeSeizeDevice, kIOHIDProductIDKey, kIOHIDProductKey, kIOHIDVendorIDKey,
+    kIOReturnSuccess,
 };
 
 use crate::protocol::{
@@ -219,7 +220,7 @@ pub fn run(handler: ReportHandler) -> Result<(), IOReturn> {
         manager.schedule_with_run_loop(&run_loop, mode);
     }
 
-    let ret = manager.open(kIOHIDOptionsTypeNone);
+    let ret = manager.open(kIOHIDOptionsTypeSeizeDevice);
     if ret != kIOReturnSuccess {
         return Err(ret);
     }
