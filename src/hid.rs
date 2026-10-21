@@ -4,7 +4,6 @@ use std::ffi::{CStr, c_void};
 use std::ptr::NonNull;
 use std::time::{Duration, Instant};
 
-use clap::builder;
 use objc2_core_foundation::{
     CFDictionary, CFIndex, CFNumber, CFRetained, CFRunLoop, CFString, Type, kCFRunLoopDefaultMode,
 };
