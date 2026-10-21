@@ -169,7 +169,6 @@ unsafe extern "C-unwind" fn on_match(
     }
 }
 
-
 /// Called by IOKit for each input report.
 unsafe extern "C-unwind" fn on_report(
     context: *mut c_void,
@@ -183,9 +182,11 @@ unsafe extern "C-unwind" fn on_report(
     let len = usize::try_from(len).unwrap_or(0);
     // SAFETY: IOKit wrote `len` valid bytes at `report` (the leaked buffer).
     let bytes = unsafe { std::slice::from_raw_parts(report.as_ptr(), len) };
-    // SAFETY: `context` is the `*mut ReportHandler` created in `run`.
-    let handler = unsafe { *context.cast::<ReportHandler>() };
-    handler(report_id, bytes)
+    // SAFETY: `context` is the leaked JoyCon from `on_match`. Callbacks all
+    // run on the one run loop thread, so no other `&mut` to it exists.
+    let joycon = unsafe { &mut *context.cast::<JoyCon>() };
+    (joycon.handler)(report_id, bytes);
+    joycon.on_report(report_id, bytes);
 }
 
 unsafe extern "C-unwind" fn on_remove(
