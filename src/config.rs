@@ -112,3 +112,53 @@ fn button_by_name(name: &str) -> Option<Buttons> {
     };
     Some(button)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_is_a_r_zr_next_and_b_y_prev() {
+        let c = Config::default();
+        assert_eq!(c.next, Buttons::A | Buttons::R | Buttons::ZR);
+        assert_eq!(c.prev, Buttons::B | Buttons::Y);
+    }
+
+    #[test]
+    fn parses_custom_mapping_case_insensitively() {
+        let c = Config::parse(
+            r#"next = ["sr"]
+prev = ["SL"]"#,
+        )
+        .unwrap();
+        assert_eq!(
+            c,
+            Config {
+                next: Buttons::SR,
+                prev: Buttons::SL
+            }
+        );
+    }
+
+    #[test]
+    fn unknown_button_is_an_error() {
+        let err = Config::parse(
+            r#"next = ["A", "Q"]
+prev = []"#,
+        )
+        .unwrap_err();
+        assert!(matches!(err, ConfigError::UnknownButton(ref n) if n == "Q"));
+    }
+
+    #[test]
+    fn missing_or_extra_keys_are_errors() {
+        assert!(matches!(
+            Config::parse("next = []"),
+            Err(ConfigError::Toml(_))
+        ));
+        assert!(matches!(
+            Config::parse("next = []\nprev = []\nrumble = true"),
+            Err(ConfigError::Toml(_))
+        ));
+    }
+}
