@@ -2,14 +2,19 @@
 
 use std::ffi::{CStr, c_void};
 use std::ptr::NonNull;
+use std::time::{Duration, Instant};
 
+use clap::builder;
 use objc2_core_foundation::{
-    CFDictionary, CFIndex, CFNumber, CFRetained, CFRunLoop, CFString, kCFRunLoopDefaultMode,
+    CFDictionary, CFIndex, CFNumber, CFRetained, CFRunLoop, CFString, Type, kCFRunLoopDefaultMode,
 };
-
 use objc2_io_kit::{
     IOHIDDevice, IOHIDManager, IOHIDReportType, IOReturn, kIOHIDOptionsTypeNone,
     kIOHIDProductIDKey, kIOHIDProductKey, kIOHIDVendorIDKey, kIOReturnSuccess,
+};
+
+use crate::protocol::{
+    InputReport, MODE_FULL, OUTPUT_LEN, SUBCMD_SET_INPUT_MODE, SubcommandBuilder, parse_input,
 };
 
 // For a Bluetooth-paired right Joy-Con,
@@ -57,6 +62,21 @@ pub type ReportHandler = fn(report_id: u32, bytes: &[u8]);
 
 /// Must be >= the device's MaxInputReportSize (see `ioreg`).
 const REPORT_BUF_LEN: usize = 512;
+
+/// Report ID of the simple HID mode macOS leaves the Joy-Con in.
+const REPORT_SIMPLE: u32 = 0x3F;
+/// Player-lights argument: LED 1 on, nothing flashing.
+const PLAYER_1: u8 = 0x01;
+/// Don't re-send set-mode more often than this.
+const MODE_RETRY: Duration = Duration::from_secs(1);
+
+/// Per-device state. Lives on the heap; IOKit gets a raw pointer to it.
+struct JoyCon {
+    device: CFRetained<IOHIDDevice>,
+    builder: SubcommandBuilder,
+    last_mode_request: Option<Instant>,
+    handler: ReportHandler,
+}
 
 /// Called by IOKit on the run loop thread when a matching device appears.
 unsafe extern "C-unwind" fn on_match(
