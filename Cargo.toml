@@ -1,0 +1,13 @@
+[package]
+name = "ukyo-clicker"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+clap = { version = "=4.6.7", features = ["derive"] }
+objc2-application-services = "=0.3.2"
+objc2-core-foundation = "=0.3.2"
+objc2-core-graphics = "=0.3.2"
+objc2-io-kit = "=0.3.2"
+serde = { version = "=1.0.229", features = ["derive"] }
+toml = "=1.1.8"
