@@ -1,6 +1,7 @@
 use clap::Parser;
 use ukyo_clicker::config::Config;
 use ukyo_clicker::hid::ReportHandler;
+use ukyo_clicker::keys::{CGEventSender, DryRun, KeySender, accessibility_trusted};
 use ukyo_clicker::mapper::{Action, Mapper};
 use ukyo_clicker::protocol::{InputReport, parse_input};
 
@@ -44,6 +45,18 @@ fn main() {
     };
     let mut mapper = Mapper::new(config.next, config.prev);
     let dump_enabled = args.dump;
+    if !dump_enabled && !accessibility_trusted(true) {
+        eprintln!(
+            "Accessibility permission missing. Enable your terminal in\n\
+             System Settings > Privacy & Security > Accessibility, then run again."
+        );
+        std::process::exit(1);
+    }
+    let mut sender: Box<dyn KeySender> = if dump_enabled {
+        Box::new(DryRun)
+    } else {
+        Box::new(CGEventSender)
+    };
 
     let handler: ReportHandler = Box::new(move |report_id, bytes| {
         if dump_enabled {
@@ -57,6 +70,7 @@ fn main() {
                 Action::Next => println!("→ NEXT"),
                 Action::Prev => println!("← PREV"),
             }
+            sender.send(action);
         }
     });
 
