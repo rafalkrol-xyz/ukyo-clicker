@@ -143,22 +143,32 @@ unsafe extern "C-unwind" fn on_match(
     let device = unsafe { device.as_ref() };
     println!("Connected: {}", product_name(device));
 
-    // IOKit writes every report into this buffer for as long as the device
-    // exists, so it must never move or be freed. Leak it (fixed in Task 9).
+    // SAFETY: `context` is the `*mut ReportHandler` created in `run`.
+    let handler = unsafe { *context.cast::<ReportHandler>() };
+    let joycon = Box::new(JoyCon {
+        device: device.retain(),
+        builder: SubcommandBuilder::new(),
+        last_mode_request: None,
+        handler,
+    });
+    // Both leaked on purpose for now (freed on disconnect in Task 9).
+    // Kept as two allocations: IOKit writes `buf` while we hold `&mut JoyCon`.
+    let joycon = Box::into_raw(joycon).cast::<c_void>();
     let buf: &'static mut [u8; REPORT_BUF_LEN] = Box::leak(Box::new([0; REPORT_BUF_LEN]));
     let ptr = NonNull::from(buf).cast::<u8>();
 
-    // SAFETY: `ptr` is valid for REPORT_BUF_LEN bytes forever; `context` is
-    // the boxed ReportHandler from `run`, also alive forever.
+    // SAFETY: `ptr` is valid for REPORT_BUF_LEN bytes forever; `joycon`
+    // points to a leaked JoyCon, also alive forever.
     unsafe {
         device.register_input_report_callback(
             ptr,
             REPORT_BUF_LEN as CFIndex,
             Some(on_report),
-            context,
+            joycon,
         );
     }
 }
+
 
 /// Called by IOKit for each input report.
 unsafe extern "C-unwind" fn on_report(
